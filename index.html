@@ -442,16 +442,20 @@ select.input{appearance:none;-webkit-appearance:none;}
     <div id="screen-decks" class="screen">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
         <h2>Decks</h2>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-secondary btn-sm" onclick="openCreateFolder()">+ Tag</button>
-          <button class="btn btn-primary btn-sm" onclick="openCreateDeck()">+ Deck</button>
-        </div>
+        <button class="btn btn-secondary btn-sm" onclick="openCreateFolder()">+ Tag</button>
       </div>
 
-      <!-- Folder / tag filter -->
+      <!-- Tag filter -->
       <div class="tags-wrap" id="deck-tag-filter" style="margin-bottom:14px;"></div>
 
       <div id="deck-list"></div>
+
+      <!-- Big add button pinned above nav -->
+      <div style="position:fixed;bottom:calc(var(--nav-h) + var(--safe-bottom) + 12px);left:50%;transform:translateX(-50%);width:calc(100% - 36px);max-width:444px;z-index:80;">
+        <button class="btn btn-primary btn-full" onclick="openCreateDeck()" style="padding:16px;font-size:16px;border-radius:var(--radius);box-shadow:0 4px 20px rgba(124,109,250,0.35);">
+          + Add new deck
+        </button>
+      </div>
     </div>
 
 
@@ -1166,6 +1170,7 @@ function startSession(type) {
     totalAnswers: 0,
     currentCardIdx: null,
     lastCardId: null,
+    cardAnswered: false,
   };
 
   // Calculate total dots needed for progress bar
@@ -1211,9 +1216,10 @@ function renderSessionCard() {
   const isKnown = card.status === 'known';
   const hard = session.hardMode;
 
-  // Reset flip
+  // Reset flip and answered state
   document.getElementById('card-flipper').classList.remove('flipped');
   document.getElementById('answer-btns').style.display='none';
+  session.cardAnswered = false;
 
   if(hard) {
     // English side first
@@ -1257,6 +1263,12 @@ function renderSessionCard() {
   const maxDots = isKnown ? 1 : 3;
   renderDots('card-dots', card.dots, maxDots);
   renderDots('card-dots-back', card.dots, maxDots);
+
+  // Auto-read Korean when card enters (Korean→English mode only)
+  if(!hard && db.settings.autoRead !== false) {
+    window.speechSynthesis.cancel();
+    setTimeout(() => speakKorean(), 100);
+  }
 }
 
 function renderDots(elId, filled, max) {
@@ -1274,12 +1286,12 @@ function revealCard() {
   const isFlipped = flipper.classList.contains('flipped');
   if(!isFlipped) {
     flipper.classList.add('flipped');
-    setTimeout(() => { document.getElementById('answer-btns').style.display='grid'; }, 300);
-    if(!session.hardMode && db.settings.autoRead !== false) {
-      setTimeout(() => speakKorean(), 100);
-    }
-  } else if(document.getElementById('answer-btns').style.display !== 'grid') {
-    // Only flip back if answer buttons aren't showing yet
+    setTimeout(() => {
+      document.getElementById('answer-btns').style.display='grid';
+      session.cardAnswered = false;
+    }, 300);
+  } else if(!session.cardAnswered) {
+    // Flip back only before answering
     flipper.classList.remove('flipped');
   }
 }
@@ -1287,6 +1299,7 @@ function revealCard() {
 function answerCard(correct) {
   const card = session.activePool[session.currentCardIdx];
   if(!card || card.done) return;
+  session.cardAnswered = true;
   session.totalAnswers++;
 
   const isKnown = card.status === 'known';
@@ -1335,12 +1348,12 @@ function answerCard(correct) {
   renderDots('card-dots', card.dots, maxDots);
   renderDots('card-dots-back', card.dots, maxDots);
 
-  // Brief visual feedback then next card
+  // Brief pause so dots are visible, then next card
   setTimeout(()=>{
     document.getElementById('card-flipper').classList.remove('flipped');
     document.getElementById('answer-btns').style.display='none';
-    setTimeout(renderSessionCard, 200);
-  }, 500);
+    setTimeout(renderSessionCard, 150);
+  }, 200);
 }
 
 function updateWordRecord(card, correct) {
