@@ -273,9 +273,8 @@ select.input{appearance:none;-webkit-appearance:none;}
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
           <div style="text-align:right;">
-            <div style="font-size:13px;color:var(--text3);margin-bottom:2px;">EXP</div>
-            <div style="font-size:22px;font-weight:500;color:var(--accent2);line-height:1;" id="home-total-exp">0</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px;">Today: <span id="home-today-exp">0</span></div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:2px;">Lifetime EXP</div>
+            <div style="font-size:20px;font-weight:500;color:var(--accent2);line-height:1;" id="home-total-exp">0</div>
           </div>
           <button class="btn btn-secondary btn-sm" onclick="showScreen('settings')">⚙️</button>
         </div>
@@ -291,6 +290,29 @@ select.input{appearance:none;-webkit-appearance:none;}
           <div style="display:flex;gap:6px;" id="home-freeze-display"></div>
         </div>
         <div class="star-row" id="home-week-stars"></div>
+      </div>
+
+      <!-- Today's progress -->
+      <div class="card" style="margin-bottom:12px;">
+        <div class="section-label" style="margin-bottom:10px;">Today's progress</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+          <div style="text-align:center;">
+            <div style="font-size:20px;font-weight:500;color:var(--accent2);" id="today-exp-val">0</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">exp</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:20px;font-weight:500;color:var(--text);" id="today-reviewed-val">0</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">reviewed</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:20px;font-weight:500;color:var(--green);" id="today-learned-val">0</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">learned</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:20px;font-weight:500;color:var(--gold);" id="today-accuracy-val">—</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">accuracy</div>
+          </div>
+        </div>
       </div>
 
       <!-- Deck selector -->
@@ -468,6 +490,11 @@ select.input{appearance:none;-webkit-appearance:none;}
           <div style="font-size:14px;font-weight:500;color:var(--text);">All decks</div>
           <div style="color:var(--text3);font-size:18px;">›</div>
         </div>
+        <!-- Tags -->
+        <div id="words-tag-list"></div>
+        <!-- Divider if tags exist -->
+        <div id="words-tag-divider" style="display:none;height:1px;background:var(--border);margin:8px 0;"></div>
+        <!-- Decks -->
         <div id="words-deck-list"></div>
       </div>
       <!-- Drill-down: tabs + words from one deck -->
@@ -668,16 +695,14 @@ select.input{appearance:none;-webkit-appearance:none;}
 </div>
 
 <!-- Quit Session Modal -->
-<div class="modal-overlay" id="modal-quit-session">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div style="text-align:center;padding:8px 0 16px;">
-      <div style="font-size:32px;margin-bottom:8px;">😔</div>
-      <h2 style="margin-bottom:8px;">Quit session?</h2>
-      <div style="font-size:14px;color:var(--text2);line-height:1.5;">You will not gain any exp from this session.</div>
+<div class="modal-overlay" id="modal-quit-session" style="align-items:center;">
+  <div class="modal" style="border-radius:var(--radius);max-width:280px;margin:0 auto;padding:20px;">
+    <h2 style="margin-bottom:8px;font-size:16px;">Quit session?</h2>
+    <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:16px;">You will not gain any exp from this session.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button class="btn btn-secondary" onclick="confirmQuitSession()" style="color:var(--red);border-color:rgba(248,113,113,0.3);padding:10px;">Quit</button>
+      <button class="btn btn-primary" onclick="closeModal('modal-quit-session')" style="padding:10px;">Continue</button>
     </div>
-    <button class="btn btn-secondary btn-full" onclick="confirmQuitSession()" style="margin-bottom:8px;color:var(--red);border-color:rgba(248,113,113,0.3);">Quit</button>
-    <button class="btn btn-primary btn-full" onclick="closeModal('modal-quit-session')">Continue studying</button>
   </div>
 </div>
 
@@ -697,13 +722,13 @@ select.input{appearance:none;-webkit-appearance:none;}
   </div>
 </div>
 
-<!-- Create Folder Modal -->
+<!-- Create Tag Modal -->
 <div class="modal-overlay" id="modal-create-folder">
   <div class="modal">
     <div class="modal-handle"></div>
-    <h2 style="margin-bottom:16px;">New Folder</h2>
-    <input class="input" id="folder-name-input" placeholder="Folder name (e.g. Travel, TOPIK 1)" style="margin-bottom:12px;">
-    <button class="btn btn-primary btn-full" onclick="saveFolder()" style="margin-bottom:8px;">Create folder</button>
+    <h2 style="margin-bottom:16px;">New tag</h2>
+    <input class="input" id="folder-name-input" placeholder="Tag name (e.g. Travel, TOPIK 1)" style="margin-bottom:12px;">
+    <button class="btn btn-primary btn-full" onclick="saveFolder()" style="margin-bottom:8px;">Create tag</button>
     <button class="btn btn-ghost btn-full" onclick="closeModal('modal-create-folder')">Cancel</button>
   </div>
 </div>
@@ -720,15 +745,20 @@ select.input{appearance:none;-webkit-appearance:none;}
     <textarea class="input korean" id="edit-kr-sentence" placeholder="Example sentence in Korean" style="margin-bottom:8px;font-size:16px;"></textarea>
     <input class="input" id="edit-en" placeholder="English translation" style="margin-bottom:8px;">
     <textarea class="input" id="edit-en-sentence" placeholder="Example sentence in English" style="margin-bottom:8px;"></textarea>
-    <div style="display:flex;gap:8px;margin-bottom:12px;">
-      <button class="btn btn-secondary btn-sm" onclick="uploadCardImage()">📷 Upload</button>
-      <button class="btn btn-secondary btn-sm" id="gen-img-btn" onclick="generateCardImage()">✨ Generate image</button>
-      <button class="btn btn-secondary btn-sm" id="del-img-btn" onclick="deleteCardImage()" style="display:none;">🗑 Remove</button>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <button class="btn btn-secondary btn-sm" onclick="uploadCardImage()">📷 Photo</button>
+      <button class="btn btn-secondary btn-sm" id="del-img-btn" onclick="deleteCardImage()" style="display:none;">🗑 Photo</button>
     </div>
-    <div id="edit-card-image-preview" style="margin-bottom:12px;display:none;">
+    <div id="edit-card-image-preview" style="margin-bottom:8px;display:none;">
       <img id="edit-card-img" style="width:100%;border-radius:var(--radius-sm);max-height:160px;object-fit:cover;" alt="">
     </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button class="btn btn-secondary btn-sm" onclick="uploadCardAudio()">🔊 Audio</button>
+      <button class="btn btn-secondary btn-sm" id="del-audio-btn" onclick="deleteCardAudio()" style="display:none;">🗑 Audio</button>
+      <div id="audio-preview" style="display:none;font-size:12px;color:var(--green);align-items:center;gap:4px;display:none;">✓ Audio loaded</div>
+    </div>
     <input type="file" id="card-image-upload" accept="image/*" style="display:none;" onchange="handleCardImageUpload(event)">
+    <input type="file" id="card-audio-upload" accept="audio/*" style="display:none;" onchange="handleCardAudioUpload(event)">
     <button class="btn btn-primary btn-full" onclick="saveEditCard()" style="margin-bottom:8px;">Save card</button>
     <button class="btn btn-ghost btn-full" onclick="closeModal('modal-edit-card')">Cancel</button>
   </div>
@@ -808,6 +838,7 @@ function defaultDB() {
     todayExp: 0,
     totalExp: 0,
     lastResetDate: null,
+    todayStats: {reviewed:0, learned:0, correct:0, totalAnswers:0},
   };
 }
 
@@ -846,6 +877,7 @@ function checkDayReset() {
       }
     }
     db.todayExp = 0;
+    db.todayStats = {reviewed:0, learned:0, correct:0, totalAnswers:0};
     db.lastResetDate = today;
     saveDB();
   }
@@ -943,7 +975,12 @@ function renderHome() {
   checkDayReset();
   // Exp display
   document.getElementById('home-total-exp').textContent = (db.totalExp||0).toLocaleString();
-  document.getElementById('home-today-exp').textContent = db.todayExp||0;
+  // Today's progress
+  document.getElementById('today-exp-val').textContent = db.todayExp||0;
+  document.getElementById('today-reviewed-val').textContent = db.todayStats?.reviewed||0;
+  document.getElementById('today-learned-val').textContent = db.todayStats?.learned||0;
+  const acc = db.todayStats?.totalAnswers ? Math.round(db.todayStats.correct/db.todayStats.totalAnswers*100)+'%' : '—';
+  document.getElementById('today-accuracy-val').textContent = acc;
   // Streak count
   document.getElementById('home-streak-count').textContent = db.streak.current + ' day' + (db.streak.current!==1?'s':'');
   // Freeze display
@@ -1385,6 +1422,11 @@ function showSessionComplete() {
   const prevExp = db.todayExp;
   db.todayExp += session.expEarned;
   db.totalExp = (db.totalExp||0) + session.expEarned;
+  if(!db.todayStats) db.todayStats = {reviewed:0, learned:0, correct:0, totalAnswers:0};
+  db.todayStats.reviewed += session.completedCount;
+  db.todayStats.learned += session.allCards.filter(c => c.status === 'unknown' && c.done).length;
+  db.todayStats.correct += session.correctCount;
+  db.todayStats.totalAnswers += session.totalAnswers;
   const today = todayStr();
 
   // First study today?
@@ -1596,23 +1638,23 @@ function openCreateFolder() {
 
 function saveFolder() {
   const name = document.getElementById('folder-name-input').value.trim();
-  if(!name){ showNotif('Enter a folder name'); return; }
+  if(!name){ showNotif('Enter a tag name'); return; }
   if(!db.folders) db.folders=[];
-  if(db.folders.find(f=>f.name===name)){ showNotif('Folder already exists'); return; }
+  if(db.folders.find(f=>f.name===name)){ showNotif('Tag already exists'); return; }
   db.folders.push({id:genId(), name});
   saveDB();
   closeModal('modal-create-folder');
   renderDecks();
-  showNotif('Folder created: '+name);
+  showNotif('Tag created: '+name);
 }
 
 function openCreateDeck() {
-  setCreateMode('import', document.querySelector('#create-deck-tabs .tab-pill'));
   document.getElementById('import-deck-name').value='';
-  document.getElementById('import-tags').value='';
+  document.getElementById('manual-deck-name').value='';
   document.getElementById('csv-preview').style.display='none';
   document.getElementById('import-save-btn').style.display='none';
-  populateTagDropdowns();
+  document.getElementById('manual-cards-list').innerHTML='';
+  setCreateMode('import', document.querySelector('#create-deck-tabs .tab-pill'));
   openModal('modal-create-deck');
 }
 
@@ -2014,17 +2056,33 @@ function openEditCard(deckId, cardIdx) {
   document.getElementById('edit-en').value = card?.english||'';
   document.getElementById('edit-en-sentence').value = card?.englishSentence||'';
 
+  // Image
   const imgPreview = document.getElementById('edit-card-image-preview');
   const imgEl = document.getElementById('edit-card-img');
   if(card?.image) {
-    imgEl.src=card.image;
-    imgPreview.style.display='block';
-    document.getElementById('del-img-btn').style.display='inline-flex';
+    imgEl.src = card.image;
+    imgPreview.style.display = 'block';
+    document.getElementById('del-img-btn').style.display = 'inline-flex';
   } else {
-    imgPreview.style.display='none';
-    document.getElementById('del-img-btn').style.display='none';
+    imgPreview.style.display = 'none';
+    document.getElementById('del-img-btn').style.display = 'none';
   }
 
+  // Audio
+  const audioPreview = document.getElementById('audio-preview');
+  const delAudioBtn = document.getElementById('del-audio-btn');
+  if(card?.audio) {
+    audioPreview.style.display = 'inline-flex';
+    delAudioBtn.style.display = 'inline-flex';
+    // Store temporarily for saving
+    document.getElementById('card-audio-upload')._currentAudio = card.audio;
+  } else {
+    audioPreview.style.display = 'none';
+    delAudioBtn.style.display = 'none';
+    document.getElementById('card-audio-upload')._currentAudio = null;
+  }
+
+  showEditGenBtn();
   closeModal('modal-edit-deck');
   openModal('modal-edit-card');
 }
@@ -2038,6 +2096,8 @@ function saveEditCard() {
 
   const imgEl = document.getElementById('edit-card-img');
   const image = imgEl.src && imgEl.style.display!=='none' ? imgEl.src : null;
+  const audioInput = document.getElementById('card-audio-upload');
+  const audio = audioInput._currentAudio || null;
 
   const card = {
     id: editingCardIdx>=0 ? (deck.cards[editingCardIdx]?.id||genId()) : genId(),
@@ -2046,6 +2106,7 @@ function saveEditCard() {
     english: en,
     englishSentence: document.getElementById('edit-en-sentence').value.trim(),
     image,
+    audio,
   };
 
   if(editingCardIdx>=0) deck.cards[editingCardIdx]=card;
@@ -2076,44 +2137,33 @@ function handleCardImageUpload(event) {
   reader.readAsDataURL(file);
 }
 
-async function generateCardImage() {
-  const kr = document.getElementById('edit-kr').value.trim();
-  const en = document.getElementById('edit-en').value.trim();
-  if(!en) { showNotif('Enter the English meaning first'); return; }
-  if(!db.settings.apiKey) { showNotif('Add your API key in Settings'); return; }
-
-  const btn = document.getElementById('gen-img-btn');
-  btn.textContent='Generating...';
-  btn.disabled=true;
-
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':db.settings.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:200,messages:[{role:'user',content:`Describe a simple, clear image that would help someone remember the Korean word "${kr}" meaning "${en}". Describe it in one sentence, suitable for an image search. Keep it concrete and visual.`}]})
-    });
-    const data = await resp.json();
-    const desc = data.content[0].text;
-    // Use a placeholder image service with the description
-    const encoded = encodeURIComponent(desc.slice(0,100));
-    const imgUrl = `https://placehold.co/400x200/1e1e35/9d91fb?text=${encodeURIComponent(en)}`;
-    const img = document.getElementById('edit-card-img');
-    img.src = imgUrl;
-    document.getElementById('edit-card-image-preview').style.display='block';
-    document.getElementById('del-img-btn').style.display='inline-flex';
-    showNotif('Image generated (upload your own for best results)');
-  } catch(e) {
-    showNotif('Image generation failed');
-  } finally {
-    btn.textContent='✨ Generate image';
-    btn.disabled=false;
-  }
-}
-
 function deleteCardImage() {
   document.getElementById('edit-card-img').src='';
   document.getElementById('edit-card-image-preview').style.display='none';
   document.getElementById('del-img-btn').style.display='none';
+}
+
+function uploadCardAudio() {
+  document.getElementById('card-audio-upload').click();
+}
+
+function handleCardAudioUpload(event) {
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('card-audio-upload')._currentAudio = e.target.result;
+    document.getElementById('audio-preview').style.display = 'inline-flex';
+    document.getElementById('del-audio-btn').style.display = 'inline-flex';
+    showNotif('Audio loaded');
+  };
+  reader.readAsDataURL(file);
+}
+
+function deleteCardAudio() {
+  document.getElementById('card-audio-upload')._currentAudio = null;
+  document.getElementById('audio-preview').style.display = 'none';
+  document.getElementById('del-audio-btn').style.display = 'none';
 }
 
 // ============================================================
@@ -2132,10 +2182,16 @@ function filterWords(filter, el) {
   currentWordFilter = filter;
   document.querySelectorAll('#drilldown-tabs .tab-pill').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
-  if(currentWordsDeck === '__all__') renderDrilldownList(null);
+  refreshDrilldown();
+}
+
+function refreshDrilldown() {
+  if(!currentWordsDeck) return;
+  if(currentWordsDeck === '__all__') renderDrilldownList(null, null);
+  else if(currentWordsDeck.startsWith('__tag__')) renderDrilldownList(null, currentWordsDeck.slice(7));
   else {
     const deck = db.decks.find(d => d.id === currentWordsDeck);
-    renderDrilldownList(deck || null);
+    renderDrilldownList(deck||null, null);
   }
 }
 
@@ -2143,6 +2199,51 @@ function showWordsOverview() {
   document.getElementById('words-overview').style.display = 'block';
   document.getElementById('words-drilldown').style.display = 'none';
   renderWordsDeckList();
+  renderWordsTagList();
+}
+
+function renderWordsTagList() {
+  const tagList = document.getElementById('words-tag-list');
+  const divider = document.getElementById('words-tag-divider');
+  if(!tagList) return;
+  tagList.innerHTML = '';
+  const allTags = getAllTags();
+  if(!allTags.length) { divider.style.display='none'; return; }
+
+  const sectionLabel = document.createElement('div');
+  sectionLabel.style.cssText = 'font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;';
+  sectionLabel.textContent = 'Tags';
+  tagList.appendChild(sectionLabel);
+
+  allTags.forEach(tag => {
+    const tagDecks = db.decks.filter(d => (d.tags||[]).includes(tag));
+    const total = tagDecks.reduce((s,d) => s+d.cards.length, 0);
+    const known = tagDecks.reduce((s,d) => s+d.cards.filter(c=>(db.words[c.id]||{}).status==='known').length, 0);
+    const learning = tagDecks.reduce((s,d) => s+d.cards.filter(c=>(db.words[c.id]||{}).status==='learning').length, 0);
+
+    const row = document.createElement('div');
+    row.className = 'card';
+    row.style.marginBottom = '6px';
+    row.style.cursor = 'pointer';
+    row.innerHTML = `
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="width:44px;height:44px;border-radius:var(--radius-sm);background:var(--accent-dim);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🏷️</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:5px;">${tag}</div>
+          <div style="display:flex;gap:10px;font-size:12px;">
+            <span style="color:var(--green);">${known} known</span>
+            <span style="color:var(--accent2);">${learning} learning</span>
+            <span style="color:var(--text3);">${total-known-learning} new</span>
+          </div>
+        </div>
+        <div style="color:var(--text3);font-size:18px;">›</div>
+      </div>
+    `;
+    row.onclick = () => openWordsDrilldown('__tag__'+tag);
+    tagList.appendChild(row);
+  });
+
+  divider.style.display = 'block';
 }
 
 function renderWordsDeckList() {
@@ -2188,26 +2289,34 @@ function openWordsDrilldown(deckId) {
   currentWordFilter = 'learning';
   document.getElementById('words-overview').style.display = 'none';
   document.getElementById('words-drilldown').style.display = 'block';
-  // Reset tabs
   document.querySelectorAll('#drilldown-tabs .tab-pill').forEach((p,i) => p.classList.toggle('active', i===0));
 
   if(deckId === '__all__') {
     document.getElementById('drilldown-deck-name').textContent = 'All decks';
-    renderDrilldownList(null);
+    renderDrilldownList(null, null);
+  } else if(deckId.startsWith('__tag__')) {
+    const tag = deckId.slice(7);
+    document.getElementById('drilldown-deck-name').textContent = '🏷️ ' + tag;
+    renderDrilldownList(null, tag);
   } else {
     const deck = db.decks.find(d => d.id === deckId);
     if(!deck) return;
     document.getElementById('drilldown-deck-name').textContent = deck.name;
-    renderDrilldownList(deck);
+    renderDrilldownList(deck, null);
   }
 }
 
-function renderDrilldownList(deck) {
+function renderDrilldownList(deck, tag) {
   const list = document.getElementById('words-drilldown-list');
   list.innerHTML = '';
 
   let cards = [];
-  if(!deck) {
+  if(tag) {
+    // All cards from decks that have this tag
+    db.decks.filter(d=>(d.tags||[]).includes(tag)).forEach(d =>
+      d.cards.forEach(c => cards.push({...c, deckName: d.name}))
+    );
+  } else if(!deck) {
     db.decks.forEach(d => d.cards.forEach(c => cards.push({...c, deckName: d.name})));
   } else {
     cards = deck.cards.map(c => ({...c, deckName: deck.name}));
@@ -2218,7 +2327,6 @@ function renderDrilldownList(deck) {
   const learning = cards.filter(c => (db.words[c.id]||{}).status === 'learning').length;
   const unknown = total - known - learning;
 
-  // Status summary badges
   const summary = document.getElementById('drilldown-status-summary');
   summary.innerHTML = `
     <div style="padding:6px 12px;border-radius:99px;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.25);font-size:12px;color:var(--green);">${known} known</div>
@@ -2326,16 +2434,8 @@ function setWordStatus(cardId, status) {
   db.words[cardId].status = status;
   if(status === 'known') db.words[cardId].manuallyKnown = true;
   saveDB();
-  if(currentWordsDeck) {
-    if(currentWordsDeck === '__all__') {
-      renderDrilldownList(null);
-    } else {
-      const deck = db.decks.find(d => d.id === currentWordsDeck);
-      if(deck) renderDrilldownList(deck);
-    }
-  } else {
-    renderWordsDeckList();
-  }
+  if(currentWordsDeck) refreshDrilldown();
+  else renderWordsDeckList();
 }
 
 // ============================================================
@@ -2345,14 +2445,25 @@ let currentCardKorean = '';
 let currentCardKoreanSentence = '';
 
 function speakKorean() {
-  if(!('speechSynthesis' in window)) { showNotif('TTS not supported on this browser'); return; }
+  if(!session || session.currentCardIdx === null) return;
+  const card = session.activePool[session.currentCardIdx];
+
+  // Use custom audio if the card has one
+  if(card?.audio) {
+    window.speechSynthesis.cancel();
+    const audio = new Audio(card.audio);
+    audio.play().catch(()=>{});
+    return;
+  }
+
+  // Fall back to TTS
+  if(!('speechSynthesis' in window)) return;
   const text = currentCardKorean + (currentCardKoreanSentence ? '. ' + currentCardKoreanSentence : '');
   if(!text.trim()) return;
   window.speechSynthesis.cancel();
   const utt = new SpeechSynthesisUtterance(text);
   utt.lang = 'ko-KR';
   utt.rate = 0.9;
-  // Try to find a Korean voice
   const voices = window.speechSynthesis.getVoices();
   const koVoice = voices.find(v => v.lang.startsWith('ko')) || null;
   if(koVoice) utt.voice = koVoice;
