@@ -44,6 +44,10 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--ui-font);overflow:hidden;}
 button{font-family:var(--ui-font);cursor:pointer;border:none;background:none;color:inherit;}
+.tag{cursor:pointer;}
+.tab-pill{cursor:pointer;}
+.badge{cursor:default;}
+select{cursor:pointer;}
 
 /* APP SHELL */
 #app{display:flex;flex-direction:column;height:100%;max-width:480px;margin:0 auto;position:relative;}
@@ -317,26 +321,9 @@ select.input{appearance:none;-webkit-appearance:none;}
         </div>
       </div>
 
-      <!-- Deck selector -->
-      <div style="margin-bottom:12px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <div class="section-label">Decks</div>
-          <button class="btn-ghost" onclick="showScreen('decks')" style="font-size:12px;">Manage →</button>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;" onclick="toggleAllDecks()" id="all-decks-row" style="cursor:pointer;">
-          <div style="font-size:14px;font-weight:500;">All decks</div>
-          <div class="deck-check" id="all-decks-check"></div>
-        </div>
-        <div id="home-deck-list"></div>
-        <div id="home-no-decks" class="empty-state" style="padding:20px;display:none;">
-          <p>No decks yet. <button class="btn-ghost" onclick="showScreen('decks')" style="color:var(--accent2);">Create your first deck →</button></p>
-        </div>
-      </div>
-
       <!-- Session controls -->
       <div class="card" style="margin-bottom:12px;">
         <div class="section-label" style="margin-bottom:12px;">Session settings</div>
-
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;">
           <div>
             <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Session size</div>
@@ -356,9 +343,7 @@ select.input{appearance:none;-webkit-appearance:none;}
             </select>
           </div>
         </div>
-
         <div class="divider" style="margin:8px 0;"></div>
-
         <div class="toggle-row" style="padding:8px 0;">
           <div>
             <div class="toggle-label">Hard mode</div>
@@ -375,9 +360,29 @@ select.input{appearance:none;-webkit-appearance:none;}
         </div>
       </div>
 
-      <!-- Session button -->
-      <div style="margin-bottom:8px;">
-        <button class="btn btn-primary btn-full" style="padding:18px;font-size:17px;font-weight:500;" onclick="startSession('learn')">
+      <!-- Deck selector -->
+      <div class="card" style="margin-bottom:72px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div class="section-label" style="margin-bottom:0;">Decks</div>
+          <button class="btn-ghost" onclick="showScreen('decks')" style="font-size:12px;">Manage →</button>
+        </div>
+        <!-- Tag filter chips -->
+        <div id="home-tag-filter" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+        <!-- All decks toggle -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;cursor:pointer;" onclick="toggleAllDecks()" id="all-decks-row">
+          <div style="font-size:13px;font-weight:500;">All decks</div>
+          <div class="deck-check" id="all-decks-check"></div>
+        </div>
+        <!-- Scrollable deck list, max ~5 decks height -->
+        <div id="home-deck-list" style="max-height:260px;overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>
+        <div id="home-no-decks" class="empty-state" style="padding:20px;display:none;">
+          <p>No decks yet. <button class="btn-ghost" onclick="showScreen('decks')" style="color:var(--accent2);">Create your first deck →</button></p>
+        </div>
+      </div>
+
+      <!-- Fixed Learn! button above nav -->
+      <div style="position:fixed;bottom:calc(var(--nav-h) + var(--safe-bottom) + 12px);left:50%;transform:translateX(-50%);width:calc(100% - 36px);max-width:444px;z-index:80;">
+        <button class="btn btn-primary btn-full" onclick="startSession('learn')" style="padding:20px;font-size:18px;font-weight:500;border-radius:var(--radius);box-shadow:0 4px 20px rgba(124,109,250,0.4);">
           Learn!
         </button>
       </div>
@@ -438,6 +443,9 @@ select.input{appearance:none;-webkit-appearance:none;}
         <div class="answer-btns" id="answer-btns" style="display:none;">
           <button class="ans-btn" onclick="answerCard(false)">✗</button>
           <button class="ans-btn" onclick="answerCard(true)">✓</button>
+        </div>
+        <div id="undo-btn-wrap" style="display:none;margin-top:8px;text-align:center;">
+          <button onclick="undoLastAnswer()" style="font-size:12px;color:var(--text3);padding:6px 16px;border:1px solid var(--border2);border-radius:99px;background:var(--surface2);">↩ Undo</button>
         </div>
       </div>
 
@@ -1038,19 +1046,46 @@ function renderHomeDeckList() {
   noDecks.style.display='none';
   document.getElementById('all-decks-row').style.display='flex';
 
-  // Default: if no deck has ever been selected, select all
-  const anySelected = db.decks.some(d=>d.selected);
-  if(!anySelected) db.decks.forEach(d=>d.selected=true);
+  // Default: if no deck has ever been explicitly configured, select all
+  if(!db.decks.some(d => d.hasOwnProperty('selected'))) {
+    db.decks.forEach(d=>d.selected=true);
+  }
+
+  // Build tag filter chips
+  const tagFilter = document.getElementById('home-tag-filter');
+  if(tagFilter) {
+    tagFilter.innerHTML='';
+    const allTags = getAllTags();
+    if(allTags.length) {
+      allTags.forEach(tag => {
+        const chip = document.createElement('div');
+        const active = (window._homeTagFilter === tag);
+        chip.className = 'tag' + (active ? ' active' : '');
+        chip.textContent = tag;
+        chip.onclick = () => {
+          window._homeTagFilter = (window._homeTagFilter === tag) ? null : tag;
+          renderHomeDeckList();
+        };
+        tagFilter.appendChild(chip);
+      });
+    }
+  }
 
   const allSelected = db.decks.every(d=>d.selected);
   const allCheck = document.getElementById('all-decks-check');
   allCheck.className = 'deck-check' + (allSelected?' checked':'');
   allCheck.textContent = allSelected ? '✓' : '';
 
-  db.decks.forEach(deck => {
+  // Filter by active tag if set
+  const decksToShow = window._homeTagFilter
+    ? db.decks.filter(d => (d.tags||[]).includes(window._homeTagFilter))
+    : db.decks;
+
+  decksToShow.forEach(deck => {
     const div = document.createElement('div');
     div.className='deck-card';
     div.style.cursor='pointer';
+    div.style.marginBottom='6px';
     const checked = deck.selected;
     const known = deck.cards.filter(c=>(db.words[c.id]||{}).status==='known').length;
     const learning = deck.cards.filter(c=>(db.words[c.id]||{}).status==='learning').length;
@@ -1074,7 +1109,8 @@ function renderHomeDeckList() {
 
 function toggleAllDecks() {
   const allSelected = db.decks.every(d=>d.selected);
-  db.decks.forEach(d=>d.selected=!allSelected);
+  // If all selected → deselect all. Otherwise → select all.
+  db.decks.forEach(d=>{ d.selected = !allSelected; });
   saveDB();
   renderHomeDeckList();
 }
@@ -1090,17 +1126,20 @@ function toggleDeckSelect(id) {
 function updateSessionSelects() {
   const size = parseInt(document.getElementById('select-size').value);
   const newSel = document.getElementById('select-new');
-  const currentNew = parseInt(newSel.value) || 5;
+  const currentNew = newSel.value !== '' ? parseInt(newSel.value) : (db.settings.newCards !== undefined ? db.settings.newCards : 5);
 
-  // Rebuild new-cards options: 5 up to size, step 5
   newSel.innerHTML = '';
-  // 0 new cards is always an option
   for(let v = 0; v <= size; v += 5) {
     const opt = document.createElement('option');
     opt.value = v;
     opt.textContent = v === 0 ? '0 new (review only)' : v + ' new';
-    if(v === Math.min(currentNew, size)) opt.selected = true;
+    // Match exactly, or fall back to closest
+    if(v === currentNew) opt.selected = true;
     newSel.appendChild(opt);
+  }
+  // If exact match wasn't found (e.g. currentNew > size), select 0
+  if(!newSel.value || parseInt(newSel.value) > size) {
+    newSel.options[0].selected = true;
   }
 
   const newCards = parseInt(newSel.value);
@@ -1220,6 +1259,7 @@ function startSession(type) {
     currentCardIdx: null,
     lastCardId: null,
     cardAnswered: false,
+    lastUndo: null,
   };
 
   // Calculate total dots needed for progress bar
@@ -1268,7 +1308,9 @@ function renderSessionCard() {
   // Reset flip and answered state
   document.getElementById('card-flipper').classList.remove('flipped');
   document.getElementById('answer-btns').style.display='none';
+  document.getElementById('undo-btn-wrap').style.display='none';
   session.cardAnswered = false;
+  session.lastUndo = null;
 
   if(hard) {
     // English side first
@@ -1350,6 +1392,24 @@ function answerCard(correct) {
   const card = session.activePool[session.currentCardIdx];
   if(!card || card.done) return;
   session.cardAnswered = true;
+
+  // Save undo snapshot before mutating
+  session.lastUndo = {
+    cardId: card.id,
+    cardIdx: session.currentCardIdx,
+    dots: card.dots,
+    attempts: card.attempts,
+    done: card.done,
+    completedCount: session.completedCount,
+    totalDotsFilled: session.totalDotsFilled,
+    expEarned: session.expEarned,
+    correctCount: session.correctCount,
+    totalAnswers: session.totalAnswers,
+    queueSnapshot: [...session.queue],
+    poolSnapshot: session.activePool.map(c=>({...c})),
+    correct,
+  };
+
   session.totalAnswers++;
 
   const isKnown = card.status === 'known';
@@ -1398,12 +1458,48 @@ function answerCard(correct) {
   renderDots('card-dots', card.dots, maxDots);
   renderDots('card-dots-back', card.dots, maxDots);
 
+  // Show undo button briefly
+  document.getElementById('undo-btn-wrap').style.display = 'block';
+
   // Brief pause so dots are visible, then next card
   setTimeout(()=>{
     document.getElementById('card-flipper').classList.remove('flipped');
     document.getElementById('answer-btns').style.display='none';
+    document.getElementById('undo-btn-wrap').style.display='none';
     setTimeout(renderSessionCard, 150);
   }, 200);
+}
+
+function undoLastAnswer() {
+  const u = session.lastUndo;
+  if(!u) return;
+
+  // Restore pool and queue from snapshot
+  session.activePool = u.poolSnapshot;
+  session.queue = u.queueSnapshot;
+  session.completedCount = u.completedCount;
+  session.totalDotsFilled = u.totalDotsFilled;
+  session.expEarned = u.expEarned;
+  session.correctCount = u.correctCount;
+  session.totalAnswers = u.totalAnswers;
+  session.lastUndo = null;
+  session.cardAnswered = false;
+
+  // Hide undo button
+  document.getElementById('undo-btn-wrap').style.display='none';
+  document.getElementById('answer-btns').style.display='none';
+
+  // Re-show the same card unflipped
+  session.currentCardIdx = u.cardIdx;
+  session.lastCardId = null;
+  document.getElementById('card-flipper').classList.remove('flipped');
+  renderDots('card-dots', u.dots, u.dots===1 && session.activePool[u.cardIdx]?.status==='known' ? 1 : 3);
+  renderDots('card-dots-back', u.dots, u.dots===1 && session.activePool[u.cardIdx]?.status==='known' ? 1 : 3);
+
+  // Update progress bar
+  const pct = session.totalDotsNeeded > 0 ? (session.totalDotsFilled / session.totalDotsNeeded * 100) : 0;
+  document.getElementById('session-progress-bar').style.width = pct+'%';
+  document.getElementById('session-counter').textContent = session.completedCount+'/'+session.allCards.length;
 }
 
 function updateWordRecord(card, correct) {
@@ -1486,11 +1582,18 @@ function showSessionComplete() {
 }
 
 function endSession() {
-  if(session && session.completedCount > 0) {
-    showSessionComplete();
-  } else {
-    showScreen('home');
+  // If session complete screen is showing, just go home
+  if(document.getElementById('session-complete').style.display === 'block') {
+    showScreen('home'); return;
   }
+  // If actively in a session, show quit confirmation
+  if(session && session.totalAnswers > 0) {
+    pendingNavTarget = 'home';
+    openModal('modal-quit-session'); return;
+  }
+  // No answers yet — just exit silently
+  session = null;
+  showScreen('home');
 }
 
 function restartSession() {
@@ -1639,9 +1742,9 @@ function renderDecks() {
         <div class="deck-meta">${deck.cards.length} cards${deck.topik?' · TOPIK '+deck.topik:''}</div>
         ${tags?`<div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap;">${tags}</div>`:''}
       </div>
-      <button class="btn btn-ghost" onclick="openEditDeck('${deck.id}');event.stopPropagation();" style="padding:8px;font-size:18px;">✏️</button>
+      <button class="btn btn-ghost" onclick="openEditDeck('${deck.id}');event.stopPropagation();" style="padding:8px;font-size:18px;display:none;">✏️</button>
     `;
-    div.onclick=()=>openDeckCardView(deck.id);
+    div.onclick=()=>openEditDeck(deck.id);
     list.appendChild(div);
   });
 }
@@ -1785,63 +1888,126 @@ async function importApkg(file) {
   preview.style.display='block';
   preview.innerHTML='<div style="font-size:13px;color:var(--text2);">Reading Anki deck...</div>';
   try {
-    // .apkg is a zip containing collection.anki21 (SQLite) and media
-    // We use JSZip to unpack, then read the SQLite binary with sql.js
-    const [JSZip, initSqlJs] = await Promise.all([
-      import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm'),
-      import('https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/sql-asm.js').then(m => m.default || m),
-    ]);
-    const zip = await JSZip.default.loadAsync(file);
-    // Try anki21 first, fall back to anki2
+    // Load JSZip via esm.sh
+    const JSZipMod = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm');
+    const JSZip = JSZipMod.default || JSZipMod;
+    const zip = await JSZip.loadAsync(file);
+
+    // Load sql.js via script tag (avoids module issues)
+    await loadSqlJs();
+
     const dbFile = zip.file('collection.anki21') || zip.file('collection.anki2');
     if(!dbFile) throw new Error('No collection found in .apkg');
     const dbBuf = await dbFile.async('arraybuffer');
-    const SQL = await initSqlJs();
-    const db2 = new SQL.Database(new Uint8Array(dbBuf));
+    const SQL = new window.SQL.Database(new Uint8Array(dbBuf));
 
-    // Extract notes — fields are pipe-separated
-    const res = db2.exec('SELECT flds, tags FROM notes LIMIT 500');
+    // Extract deck name from col table
+    let deckName = '';
+    try {
+      const colRes = SQL.exec('SELECT decks FROM col LIMIT 1');
+      if(colRes.length && colRes[0].values[0]) {
+        const decks = JSON.parse(colRes[0].values[0][0]);
+        const deckEntries = Object.values(decks).filter(d => d.name && d.name !== 'Default');
+        if(deckEntries.length) deckName = deckEntries[0].name;
+      }
+    } catch(e) {}
+
+    // Auto-fill deck name field
+    if(deckName) {
+      const nameInput = document.getElementById('import-deck-name');
+      if(nameInput && !nameInput.value.trim()) nameInput.value = deckName;
+    }
+
+    // Extract notes
+    const res = SQL.exec('SELECT flds FROM notes LIMIT 500');
     pendingImportCards = [];
     if(res.length && res[0].values) {
       res[0].values.forEach(row => {
-        const fields = row[0].split('\x1f'); // Anki field separator
-        const rawF0 = (fields[0]||'').replace(/<[^>]+>/g,'').trim();
-        const rawF1 = (fields[1]||'').replace(/<[^>]+>/g,'').trim();
-        const rawF2 = (fields[2]||'').replace(/<[^>]+>/g,'').trim();
-        const rawF3 = (fields[3]||'').replace(/<[^>]+>/g,'').trim();
+        // Strip HTML, sound tags, and clean up
+        const clean = s => (s||'')
+          .replace(/<[^>]+>/g,'')
+          .replace(/\[sound:[^\]]+\]/g,'')
+          .replace(/\s+/g,' ')
+          .trim();
 
-        // Determine which fields contain Hangul
-        const hasHangul0 = /[\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F]/.test(rawF0);
-        const hasHangul1 = /[\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F]/.test(rawF1);
+        const rawFields = row[0].split('\x1f').map(clean).filter(f => f.length > 0);
+        if(rawFields.length < 2) return;
 
-        // Korean field = whichever of f0/f1 contains Hangul; English = the other
-        const korean = hasHangul0 ? rawF0 : (hasHangul1 ? rawF1 : rawF0);
-        const english = hasHangul0 ? rawF1 : (hasHangul1 ? rawF0 : rawF1);
+        // Rank fields by Hangul density
+        const hangulScore = s => (s.match(/[\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F]/g)||[]).length / Math.max(s.length,1);
+        const scored = rawFields.map((f,i) => ({f, i, score: hangulScore(f)}));
+        scored.sort((a,b) => b.score - a.score);
 
-        // For sentences, same logic: pick Hangul-containing field for koreanSentence
-        const hasHangul2 = /[\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F]/.test(rawF2);
-        const koreanSentence = hasHangul2 ? rawF2 : rawF3;
-        const englishSentence = hasHangul2 ? rawF3 : rawF2;
+        // Top scorer = Korean word, second = Korean sentence (if also has Hangul)
+        // Bottom scorer = English word, second-bottom = English sentence
+        const korean = scored[0]?.f || '';
+        const koreanSentence = (scored[1]?.score > 0.1) ? scored[1].f : '';
+        // For English: take from the low-score end
+        const engScored = [...scored].reverse();
+        const english = engScored[0]?.f || '';
+        const englishSentence = (engScored[1] && engScored[1].score < 0.1) ? engScored[1].f : '';
+
         if(korean) pendingImportCards.push({id:genId(), korean, english, koreanSentence, englishSentence});
       });
     }
-    db2.close();
+    SQL.close();
     showImportPreview();
   } catch(e) {
     preview.innerHTML=`<div style="font-size:13px;color:var(--red);">Could not read .apkg: ${e.message}. Try exporting as CSV from Anki instead.</div>`;
   }
 }
 
+function loadSqlJs() {
+  return new Promise((resolve, reject) => {
+    if(window.SQL) { resolve(); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.min.js';
+    script.onload = () => {
+      window.initSqlJs({locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}`})
+        .then(SQL => { window.SQL = SQL; resolve(); })
+        .catch(reject);
+    };
+    script.onerror = () => reject(new Error('Could not load sql.js'));
+    document.head.appendChild(script);
+  });
+}
+
 function previewCSV(file) {
   const reader = new FileReader();
   reader.onload = e => {
+    const cleanField = s => (s||'').replace(/\[sound:[^\]]+\]/g,'').replace(/<[^>]+>/g,'').trim();
     const lines = e.target.result.split('\n').filter(l=>l.trim());
     pendingImportCards = [];
-    lines.forEach(line => {
-      const cols = line.split(',').map(c=>c.trim().replace(/^"|"$/g,''));
-      if(cols.length>=2) {
-        const card = {id:genId(),korean:cols[0],english:cols[1],koreanSentence:cols[2]||'',englishSentence:cols[3]||''};
-        pendingImportCards.push(card);
+    let startIdx = 0;
+
+    // Check if first row looks like a header (no Hangul in first column)
+    if(lines.length > 0) {
+      const firstCols = lines[0].split(',').map(c=>c.trim().replace(/^"|"$/g,''));
+      const hasHangul = /[\uAC00-\uD7A3]/.test(firstCols[0]);
+      if(!hasHangul && firstCols[0]) {
+        // Use as suggested deck name
+        const nameInput = document.getElementById('import-deck-name');
+        if(nameInput && !nameInput.value.trim()) nameInput.value = firstCols[0];
+        startIdx = 1;
+      }
+    }
+
+    lines.slice(startIdx).forEach(line => {
+      const cols = line.split(',').map(c=>cleanField(c.replace(/^"|"$/g,'')));
+      if(cols.length>=2 && cols[0]) {
+        // Rank by Hangul density
+        const hangulScore = s => (s.match(/[\uAC00-\uD7A3]/g)||[]).length / Math.max(s.length,1);
+        const scored = cols.map((f,i)=>({f,i,score:hangulScore(f)})).filter(x=>x.f);
+        scored.sort((a,b)=>b.score-a.score);
+        const engScored = [...scored].reverse();
+        const card = {
+          id:genId(),
+          korean: scored[0]?.f||'',
+          koreanSentence: (scored[1]?.score>0.1) ? scored[1].f : '',
+          english: engScored[0]?.f||'',
+          englishSentence: (engScored[1]?.score<0.1) ? engScored[1].f : '',
+        };
+        if(card.korean) pendingImportCards.push(card);
       }
     });
     showImportPreview();
@@ -1852,14 +2018,23 @@ function previewCSV(file) {
 function showImportPreview() {
   const preview = document.getElementById('csv-preview');
   preview.style.display='block';
-  preview.innerHTML='<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">Preview (first 5):</div>';
+  preview.innerHTML=`<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">Preview — first ${Math.min(pendingImportCards.length,5)} of ${pendingImportCards.length} cards:</div>`;
   pendingImportCards.slice(0,5).forEach(card => {
     const div=document.createElement('div');
-    div.style.cssText='padding:8px;background:var(--surface2);border-radius:6px;margin-bottom:4px;font-size:13px;';
-    div.innerHTML=`<span class="korean" style="font-size:16px;">${card.korean}</span> — ${card.english}`;
+    div.style.cssText='display:flex;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:6px;overflow:hidden;border:1px solid var(--border);';
+    div.innerHTML=`
+      <div style="flex:1;padding:10px 12px;min-width:0;">
+        <div class="korean" style="font-size:17px;font-weight:500;margin-bottom:4px;">${card.korean||'—'}</div>
+        ${card.koreanSentence ? `<div class="korean" style="font-size:12px;color:var(--text2);line-height:1.4;">${card.koreanSentence}</div>` : ''}
+      </div>
+      <div style="width:1px;background:var(--border2);flex-shrink:0;"></div>
+      <div style="flex:1;padding:10px 12px;min-width:0;">
+        <div style="font-size:15px;font-weight:500;margin-bottom:4px;">${card.english||'—'}</div>
+        ${card.englishSentence ? `<div style="font-size:12px;color:var(--text2);line-height:1.4;">${card.englishSentence}</div>` : ''}
+      </div>
+    `;
     preview.appendChild(div);
   });
-  preview.innerHTML += `<div style="font-size:12px;color:var(--text2);margin-top:8px;">${pendingImportCards.length} cards found</div>`;
   document.getElementById('import-save-btn').style.display='block';
 }
 
