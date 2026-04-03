@@ -2337,16 +2337,16 @@ function applyWordsFilters() {
 
 
   console.log("currentWordFilter:", `"${currentWordFilter}"`);
-// ELEPHANT DEBUG
-const rawLearning = cards.filter(c => (db.words[c.id]||{}).status === 'learning');
-console.log("raw learning:", rawLearning.length);
+  // ELEPHANT DEBUG
+  const rawLearning = cards.filter(c => (db.words[c.id]||{}).status === 'learning');
+  console.log("raw learning:", rawLearning.length);
 
-const filtered = cards.filter(c => {
+  const filtered2 = cards.filter(c => {
   const s = db.words[c.id]?.status || 'new';
   const display = s === 'new' ? 'unknown' : s;
   return display === currentWordFilter;
 });
-console.log("after filter:", filtered.length);
+console.log("after filter:", filtered2.length);
 }
 
 function renderWordsList(filtered, startIdx) {
