@@ -1374,7 +1374,7 @@ function renderSessionCard() {
 
   document.getElementById('known-card-badge').style.display = card.status==='known'||card.status==='review' ? 'block' : 'none';
 
-  const maxDots = card.status === 'new' || card.status === 'learning' ? 2 : 1;
+  const maxDots = card.status === 'new' || card.status === 'learning' ? 3 : 1;
   const filled  = maxDots - card.repsLeft;
   renderDots('card-dots',      filled, maxDots);
   renderDots('card-dots-back', filled, maxDots);
