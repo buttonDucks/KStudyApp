@@ -2379,7 +2379,7 @@ function buildWordRow(card) {
   const rawStatus = w.status || 'new';
   const status = rawStatus === 'new' ? 'unknown' : rawStatus;
   const interval = w.interval || 0;
-  const daysSeen = (w.daysSeen || []).length;
+  const daysSeen = Array.isArray(w.daysSeen) ? w.daysSeen.length : 0;
   const pct = Math.min(100, Math.round(interval / 21 * 100));
   const div = document.createElement('div');
   div.style.cssText = 'display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);';
@@ -2390,7 +2390,7 @@ function buildWordRow(card) {
     </div>
     ${status === 'learning' ? `
     <div style="text-align:right;min-width:64px;">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">${daysSeen.length} days correct</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">${daysSeen} days correct</div>
       <div class="progress-bar-wrap" style="width:64px;"><div class="progress-bar" style="width:${pct}%;"></div></div>
     </div>` : ''}
     <button onclick="openWordMenu('${card.id}');event.stopPropagation();" style="padding:6px 8px;color:var(--text3);font-size:20px;flex-shrink:0;line-height:1;cursor:pointer;">⋯</button>
