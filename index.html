@@ -574,12 +574,12 @@ select.input{appearance:none;-webkit-appearance:none;}
         <div class="section-label" style="margin-bottom:12px;">Daily goal</div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">Target exp to earn each day</div>
         <select class="input" id="daily-goal-select" onchange="saveDailyGoal()">
-          <option value="100">100 exp (easy)</option>
-          <option value="200">200 exp</option>
-          <option value="300" selected>300 exp (default)</option>
-          <option value="500">500 exp</option>
+          <option value="200">200 exp </option>
+          <option value="300">300 exp</option>
+          <option value="500" selected>500 exp (default)</option>
           <option value="750">750 exp</option>
           <option value="1000">1000 exp</option>
+          <option value="1500">1500 exp</option>
         </select>
       </div>
 
@@ -1201,7 +1201,7 @@ function sm2Correct(w) {
   else                      w.interval = Math.round(w.interval * w.ease);
   w.ease = Math.max(SM2_EASE_MIN, w.ease + 0.1);
   w.due  = dateAddDays(todayStr(), w.interval);
-  if(w.status === 'new' || w.status === 'learning') w.status = 'review';
+  if(w.status === 'new' || w.status === 'learning') w.status === 'review';
   const today = todayStr();
   if (!w.daysSeen.includes(today)) {
     w.daysSeen.push(today);
