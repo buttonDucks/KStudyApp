@@ -2380,7 +2380,7 @@ function buildWordRow(card) {
   const status = rawStatus === 'new' ? 'unknown' : rawStatus;
   const interval = w.interval || 0;
   const daysSeen = Array.isArray(w.daysSeen) ? w.daysSeen.length : 0;
-  const pct = Math.min(100, Math.round(interval / 21 * 100));
+  const pct = Math.min(100, Math.round(daysSeen / 21 * 100));
   const div = document.createElement('div');
   div.style.cssText = 'display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);';
   div.innerHTML = `
