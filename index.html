@@ -1198,7 +1198,7 @@ function updateSessionSelects() {
 // ============================================================
 // Word record shape:
 //   { status, ease, interval, due, lapses, lastSeen, manuallyKnown }
-// status: 'new' | 'learning' | 'review' | 'known'
+// status: 'new' | 'learning' | 'known'
 // ease:     SM-2 E-factor (min 1.3, default 2.5)
 // interval: days until next review (1, 6, …)
 // due:      ISO date string — when to next show
@@ -1217,7 +1217,11 @@ function srsRecord(cardId) {
   if(!w.due)      w.due      = todayStr();
   if(!w.lapses)   w.lapses   = 0;
   if(!w.status)   w.status   = 'new';
-  if(!w.daysSeen) w.daysSeen = [];
+  if(w.status === 'review') w.status = 'learning';
+  if(!Array.isArray(w.daysSeen)) {
+    const seenCount = Number.isFinite(w.daysSeen) ? Math.max(0, Math.floor(w.daysSeen)) : 0;
+    w.daysSeen = Array.from({ length: seenCount }, (_, i) => `legacy-${i}`);
+  }
   return w;
 }
 
@@ -1228,15 +1232,21 @@ function sm2Correct(w) {
   else                      w.interval = Math.round(w.interval * w.ease);
   w.ease = Math.max(SM2_EASE_MIN, w.ease + 0.1);
   w.due  = dateAddDays(todayStr(), w.interval);
-  if(w.status === 'new' || w.status === 'learning') w.status === 'review';
   const today = todayStr();
-  if (!w.daysSeen.includes(today)) {
+  if(w.status === 'known') {
+    w.daysSeen = w.daysSeen.filter(day => day !== today);
+    if(w.daysSeen.length >= 21) w.daysSeen.shift();
     w.daysSeen.push(today);
+  } else {
+    w.status = 'learning';
+    if(!w.daysSeen.includes(today)) {
+      w.daysSeen.push(today);
+    }
+    if(w.daysSeen.length >= 21) {
+      w.status = 'known';
+      w.daysSeen = w.daysSeen.slice(-21);
+    }
   }
-  if (w.daysSeen.length >= 21) {
-    w.status = 'known';
-  }
-  
 }
 
 // After a wrong answer, reset to re-learning
@@ -1244,12 +1254,11 @@ function sm2Wrong(w) {
   w.ease     = Math.max(SM2_EASE_MIN, w.ease - 0.2);
   w.interval = 1;
   w.due      = todayStr();
-  if(w.status === 'review' || w.status === 'known') {
+  if(w.status === 'known') {
     w.lapses++;
-    w.status = 'learning';
-  } else {
-    w.status = 'learning';
+    w.daysSeen = [];
   }
+  w.status = 'learning';
 }
 
 function dateAddDays(iso, n) {
@@ -1291,7 +1300,7 @@ function startSession(type) {
   );
 
   // Partition
-  const due     = allCards.filter(c => (c.srStatus==='learning'||c.srStatus==='review') && isDue(db.words[c.id]));
+  const due     = allCards.filter(c => c.srStatus==='learning' && isDue(db.words[c.id]));
   const newCards = allCards.filter(c => c.srStatus==='new');
   const knownDue = includeKnown
     ? allCards.filter(c => c.srStatus==='known' && isDue(db.words[c.id]))
@@ -1302,8 +1311,9 @@ function startSession(type) {
   shuffle(newCards);
   shuffle(knownDue);
 
+  const dueLimit = Math.max(0, size - Math.min(newCount, newCards.length));
   let pool = [
-    ...due.slice(0, size - Math.min(newCount, newCards.length)),
+    ...due.slice(0, dueLimit),
     ...newCards.slice(0, newCount),
   ].slice(0, size);
 
@@ -1312,17 +1322,37 @@ function startSession(type) {
     pool = pool.concat(knownDue.slice(0, size - pool.length));
   }
 
-  // Fallback: use whatever is available
+  // Backfill from due cards before introducing any extra new cards.
+  if(pool.length < size) {
+    const usedIds = new Set(pool.map(card => card.id));
+    const remainingDue = due.filter(card => !usedIds.has(card.id));
+    if(remainingDue.length) {
+      pool = pool.concat(remainingDue.slice(0, size - pool.length));
+    }
+  }
+
+  // Respect the user's new-card setting: review-only sessions should stay review-only.
   if(!pool.length) {
-    pool = shuffle([...due, ...newCards, ...knownDue]).slice(0, size);
-    if(!pool.length) { showNotif('No cards available! Add cards or wait for reviews to become due.'); return; }
+    const fallbackPool = [
+      ...due,
+      ...knownDue,
+      ...(newCount > 0 ? newCards : []),
+    ];
+    pool = shuffle(fallbackPool).slice(0, size);
+    if(!pool.length) {
+      const message = newCount === 0
+        ? 'No review cards are due right now. Increase new cards or wait for reviews to become due.'
+        : 'No cards available! Add cards or wait for reviews to become due.';
+      showNotif(message);
+      return;
+    }
   }
 
   // Session cards — new/learning need 3 correct reps; review/known need 1
   const sessionCards = pool.map(c => ({
     ...c,
     status:   db.words[c.id].status,
-    repsLeft: (db.words[c.id].status === 'new' || db.words[c.id].status === 'learning') ? 3 : 1,
+    repsLeft: 3,
     done:     false,
   }));
 
@@ -1407,9 +1437,9 @@ function renderSessionCard() {
   if(card.image) { imgEl.src = card.image; imgEl.style.display = 'block'; }
   else imgEl.style.display = 'none';
 
-  document.getElementById('known-card-badge').style.display = card.status==='known'||card.status==='review' ? 'block' : 'none';
+  document.getElementById('known-card-badge').style.display = 'none';
 
-  const maxDots = card.status === 'new' || card.status === 'learning' ? 3 : 1;
+  const maxDots = 3;
   const filled  = maxDots - card.repsLeft;
   renderDots('card-dots',      filled, maxDots);
   renderDots('card-dots-back', filled, maxDots);
@@ -1447,7 +1477,6 @@ function answerCard(correct) {
   session.cardAnswered = true;
 
   session.totalAnswers++;
-  const maxDots = card.repsLeft + (card.repsLeft < (card.status==='new'||card.status==='learning'?3:1) ? 0 : 0);
 
   if(correct) {
     session.correctCount++;
@@ -1465,14 +1494,14 @@ function answerCard(correct) {
       }
     }
   } else {
-    if(card.repsLeft < (card.status==='new'||card.status==='learning' ? 3 : 1)) {
+    if(card.repsLeft < 3) {
       card.repsLeft++; // reset rep progress
       session.repsFilledCount = Math.max(0, session.repsFilledCount - 1);
     }
     updateWordRecord(card.id, false);
   }
 
-  const curMax  = card.status==='new'||card.status==='learning' ? 3 : 1;
+  const curMax  = 3;
   const curFill = curMax - card.repsLeft;
   renderDots('card-dots',      Math.max(0, curFill), curMax);
   renderDots('card-dots-back', Math.max(0, curFill), curMax);
@@ -2336,6 +2365,7 @@ function populateWordsFilters() {
 function applyWordsFilters() {
   const deckId = document.getElementById('words-filter-deck')?.value || '';
   const tag = document.getElementById('words-filter-tag')?.value || '';
+  const displayStatus = status => status === 'review' ? 'learning' : (status || 'new');
   let cards = [];
   db.decks.forEach(deck => {
     if(deckId && deck.id !== deckId) return;
@@ -2343,8 +2373,8 @@ function applyWordsFilters() {
     deck.cards.forEach(c => cards.push({...c, deckName: deck.name}));
   });
   const total    = cards.length;
-  const known    = cards.filter(c => (db.words[c.id]||{}).status === 'known').length;
-  const learning = cards.filter(c => (db.words[c.id]||{}).status === 'learning').length;
+  const known    = cards.filter(c => displayStatus((db.words[c.id]||{}).status) === 'known').length;
+  const learning = cards.filter(c => displayStatus((db.words[c.id]||{}).status) === 'learning').length;
   const unknown  = total - known - learning;
   const summary = document.getElementById('drilldown-status-summary');
   if(summary) summary.innerHTML = `
@@ -2353,7 +2383,7 @@ function applyWordsFilters() {
     <div style="padding:4px 10px;border-radius:99px;background:var(--surface2);border:1px solid var(--border);font-size:12px;color:var(--text3);">${unknown} new</div>
   `;
   const filtered = cards.filter(c => {
-    const s = db.words[c.id]?.status || 'new';
+    const s = displayStatus(db.words[c.id]?.status);
     const display = s === 'new' ? 'unknown' : s;
     return display === currentWordFilter;
   });
@@ -2387,7 +2417,7 @@ function renderWordsList(filtered, startIdx) {
 
 function buildWordRow(card) {
   const w = db.words[card.id] || {};
-  const rawStatus = w.status || 'new';
+  const rawStatus = w.status === 'review' ? 'learning' : (w.status || 'new');
   const status = rawStatus === 'new' ? 'unknown' : rawStatus;
   const interval = w.interval || 0;
   const daysSeen = Array.isArray(w.daysSeen) ? w.daysSeen.length : 0;
@@ -2414,7 +2444,7 @@ function openWordMenu(cardId) {
   for(const deck of db.decks) { const c = deck.cards.find(c => c.id === cardId); if(c) { card = c; break; } }
   if(!card) return;
   const w = db.words[cardId] || {};
-  const rawStatus = w.status || 'new';
+  const rawStatus = w.status === 'review' ? 'learning' : (w.status || 'new');
   const status = rawStatus === 'new' ? 'unknown' : rawStatus;
   document.getElementById('word-menu-kr').textContent = card.korean;
   document.getElementById('word-menu-en').textContent = card.english;
@@ -2441,9 +2471,10 @@ function setWordStatus(cardId, status) {
   // Map UI status labels to SRS statuses
   const map = { unknown: 'new', learning: 'learning', known: 'known' };
   w.status = map[status] || status;
-  if(w.status === 'known') { w.manuallyKnown = true; w.daysSeen = 21; w.due = dateAddDays(todayStr(), 21); }
-  if(w.status === 'new')   { w.daysSeen = 0; w.due = todayStr(); }
-  if(w.status === 'learning') { w.daysSeen = 1; w.due = todayStr(); }
+  if(w.status === 'known') { w.manuallyKnown = true; w.daysSeen = Array.from({ length: 21 }, (_, i) => `manual-${i}`); w.due = dateAddDays(todayStr(), 21); }
+  if(w.status === 'new')   { w.daysSeen = []; w.due = todayStr(); }
+  if(w.status === 'learning') { w.daysSeen = [todayStr()]; w.due = todayStr(); }
+  db.words[cardId] = w;
   saveDB();
   applyWordsFilters();
 }
