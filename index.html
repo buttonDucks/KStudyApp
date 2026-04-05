@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
 
-<script src="https://www.gstatic.com/firebasejs/7.14.4/firebase-app.js">
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword,
@@ -23,7 +22,25 @@ const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db_fs = getFirestore(app); // using db_fs to avoid clashing with your local db variable
 
-  
+window.firebaseApp = app;
+window.firebaseAuth = auth;
+window.firebaseDb = db_fs;
+window.firebaseApi = {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  collection,
+  getDocs,
+  writeBatch,
+};
+window.firebaseReady = true;
 </script>
 
   
@@ -636,6 +653,29 @@ select.input{appearance:none;-webkit-appearance:none;}
         </div>
       </div>
 
+      <div class="card" style="margin-bottom:12px;">
+        <div class="section-label" style="margin-bottom:12px;">Account</div>
+        <div id="account-signed-out">
+          <div style="font-size:15px;color:var(--text);margin-bottom:4px;">Sign in to save your place across devices</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:12px;">Use email/password or Google. Your cloud save sync can be connected next once the account layer is in place.</div>
+          <button class="btn btn-primary btn-full" onclick="openAuthModal('signin')" style="margin-bottom:8px;">Sign in or create account</button>
+          <button class="btn btn-secondary btn-full" onclick="openAuthModal('signup')">Create account</button>
+        </div>
+        <div id="account-signed-in" style="display:none;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;">
+            <div>
+              <div style="font-size:15px;color:var(--text);margin-bottom:4px;">Signed in</div>
+              <div style="font-size:13px;color:var(--accent2);word-break:break-word;" id="account-email">—</div>
+            </div>
+            <div style="padding:5px 10px;border-radius:99px;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.25);font-size:11px;color:var(--green);">Live</div>
+          </div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:12px;">Authentication is active. Cloud save wiring is the next step.</div>
+          <button class="btn btn-secondary btn-full" onclick="openAuthModal('signin')" style="margin-bottom:8px;">Manage account</button>
+          <button class="btn btn-secondary btn-full" onclick="signOutAccount()" style="color:var(--red);border-color:rgba(248,113,113,0.3);">Sign out</button>
+        </div>
+        <div id="account-status-note" style="font-size:12px;color:var(--text3);margin-top:12px;line-height:1.5;">Checking connection…</div>
+      </div>
+
       <div class="card">
         <div class="settings-row" style="border:none;">
           <div><div class="settings-label">App version</div></div>
@@ -783,6 +823,42 @@ select.input{appearance:none;-webkit-appearance:none;}
     <div id="manage-tags-list"></div>
     <button class="btn btn-primary btn-full" onclick="closeModal('modal-manage-tags');openCreateFolder();" style="margin-top:12px;">+ New tag</button>
     <button class="btn btn-ghost btn-full" onclick="closeModal('modal-manage-tags')" style="margin-top:8px;">Done</button>
+  </div>
+</div>
+
+<!-- Account Modal -->
+<div class="modal-overlay" id="modal-auth">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;">
+      <div>
+        <h2 id="auth-modal-title" style="margin-bottom:4px;">Sign in</h2>
+        <div style="font-size:13px;color:var(--text2);" id="auth-modal-subtitle">Pick up your study progress anywhere.</div>
+      </div>
+      <div style="width:44px;height:44px;border-radius:14px;background:var(--accent-dim);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;color:var(--accent2);font-size:18px;flex-shrink:0;">✦</div>
+    </div>
+
+    <div class="tab-pills" id="auth-tabs" style="margin-bottom:14px;">
+      <div class="tab-pill active" onclick="setAuthMode('signin', this)">Sign in</div>
+      <div class="tab-pill" onclick="setAuthMode('signup', this)">Create account</div>
+    </div>
+
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:12px;">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em;">Email</div>
+      <input class="input" id="auth-email" type="email" placeholder="you@example.com" autocomplete="email" style="margin-bottom:10px;">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em;">Password</div>
+      <input class="input" id="auth-password" type="password" placeholder="Minimum 6 characters" autocomplete="current-password" style="margin-bottom:10px;">
+      <div id="auth-confirm-wrap" style="display:none;">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em;">Confirm password</div>
+        <input class="input" id="auth-confirm-password" type="password" placeholder="Repeat password" autocomplete="new-password">
+      </div>
+    </div>
+
+    <div id="auth-status" style="display:none;font-size:13px;line-height:1.5;margin-bottom:12px;padding:10px 12px;border-radius:var(--radius-sm);"></div>
+
+    <button class="btn btn-primary btn-full" id="auth-submit-btn" onclick="submitAuthForm()" style="margin-bottom:8px;">Sign in</button>
+    <button class="btn btn-secondary btn-full" onclick="signInWithGoogle()" style="margin-bottom:12px;">Continue with Google</button>
+    <button class="btn btn-ghost btn-full" onclick="closeModal('modal-auth')">Close</button>
   </div>
 </div>
 
@@ -1009,6 +1085,7 @@ function showScreen(name) {
     renderWords('learning');
   }
   if(name==='streak') renderStreak();
+  if(name==='settings') renderSettings();
 }
 
 // ============================================================
@@ -1531,6 +1608,10 @@ function answerCard(correct) {
   const curFill = curMax - card.repsLeft;
   renderDots('card-dots',      Math.max(0, curFill), curMax);
   renderDots('card-dots-back', Math.max(0, curFill), curMax);
+
+  const pct = session.totalReps > 0 ? (session.repsFilledCount / session.totalReps * 100) : 0;
+  document.getElementById('session-progress-bar').style.width = pct + '%';
+  document.getElementById('session-counter').textContent = session.completedCount + '/' + session.allCards.length;
 
 
 
@@ -2659,6 +2740,208 @@ function loadAudioSettings() {
   if(toggle) toggle.checked = db.settings.autoRead !== false;
 }
 
+let authUiMode = 'signin';
+let authUser = null;
+let authReady = false;
+let authListenerBound = false;
+let authInitQueued = false;
+
+function renderSettings() {
+  renderAccountUI();
+}
+
+function renderAccountUI() {
+  const signedOut = document.getElementById('account-signed-out');
+  const signedIn = document.getElementById('account-signed-in');
+  const email = document.getElementById('account-email');
+  const note = document.getElementById('account-status-note');
+  if(!signedOut || !signedIn || !email || !note) return;
+
+  if(!window.firebaseReady || !window.firebaseAuth || !window.firebaseApi) {
+    signedOut.style.display = 'block';
+    signedIn.style.display = 'none';
+    note.textContent = 'Firebase is still loading. If this stays here, refresh and check your GitHub Pages deployment.';
+    return;
+  }
+
+  if(!authReady) {
+    signedOut.style.display = 'block';
+    signedIn.style.display = 'none';
+    note.textContent = 'Checking account session…';
+    return;
+  }
+
+  if(authUser) {
+    signedOut.style.display = 'none';
+    signedIn.style.display = 'block';
+    email.textContent = authUser.email || 'Google account';
+    note.textContent = 'Signed in successfully. Account auth is live; cloud save is the next layer to connect.';
+  } else {
+    signedOut.style.display = 'block';
+    signedIn.style.display = 'none';
+    note.textContent = 'Ready to sign in. Your local study data stays on this device until cloud sync is connected.';
+  }
+}
+
+function setAuthMessage(message, isError = false) {
+  const el = document.getElementById('auth-status');
+  if(!el) return;
+  if(!message) {
+    el.style.display = 'none';
+    el.textContent = '';
+    el.style.background = '';
+    el.style.border = '';
+    el.style.color = '';
+    return;
+  }
+  el.style.display = 'block';
+  el.textContent = message;
+  el.style.background = isError ? 'rgba(248,113,113,0.12)' : 'rgba(124,109,250,0.12)';
+  el.style.border = `1px solid ${isError ? 'rgba(248,113,113,0.28)' : 'rgba(124,109,250,0.25)'}`;
+  el.style.color = isError ? 'var(--red)' : 'var(--accent2)';
+}
+
+function setAuthMode(mode, el) {
+  authUiMode = mode === 'signup' ? 'signup' : 'signin';
+  document.querySelectorAll('#auth-tabs .tab-pill').forEach(p => p.classList.remove('active'));
+  if(el) el.classList.add('active');
+  else {
+    const idx = authUiMode === 'signup' ? 1 : 0;
+    const tab = document.querySelectorAll('#auth-tabs .tab-pill')[idx];
+    if(tab) tab.classList.add('active');
+  }
+
+  const isSignup = authUiMode === 'signup';
+  document.getElementById('auth-modal-title').textContent = isSignup ? 'Create account' : 'Sign in';
+  document.getElementById('auth-modal-subtitle').textContent = isSignup
+    ? 'Create a FlipSide account with the same look and feel as the app.'
+    : 'Sign in to access your account and get ready for cloud sync.';
+  document.getElementById('auth-submit-btn').textContent = isSignup ? 'Create account' : 'Sign in';
+  document.getElementById('auth-confirm-wrap').style.display = isSignup ? 'block' : 'none';
+  document.getElementById('auth-password').autocomplete = isSignup ? 'new-password' : 'current-password';
+  setAuthMessage('');
+}
+
+function openAuthModal(mode = 'signin') {
+  if(!window.firebaseReady || !window.firebaseAuth || !window.firebaseApi) {
+    showNotif('Firebase is not ready yet.');
+    return;
+  }
+  document.getElementById('auth-email').value = authUser?.email || '';
+  document.getElementById('auth-password').value = '';
+  document.getElementById('auth-confirm-password').value = '';
+  setAuthMode(mode);
+  if(authUser) {
+    setAuthMessage(`Signed in as ${authUser.email || 'Google account'}. You can sign in with a different account if you want to switch.`);
+  }
+  openModal('modal-auth');
+}
+
+async function submitAuthForm() {
+  if(!window.firebaseReady || !window.firebaseAuth || !window.firebaseApi) {
+    setAuthMessage('Firebase is not ready yet. Try refreshing the page.', true);
+    return;
+  }
+
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const confirmPassword = document.getElementById('auth-confirm-password').value;
+  const submitBtn = document.getElementById('auth-submit-btn');
+  const isSignup = authUiMode === 'signup';
+
+  if(!email || !password) {
+    setAuthMessage('Enter both email and password.', true);
+    return;
+  }
+  if(isSignup && password.length < 6) {
+    setAuthMessage('Password must be at least 6 characters.', true);
+    return;
+  }
+  if(isSignup && password !== confirmPassword) {
+    setAuthMessage('Passwords do not match.', true);
+    return;
+  }
+
+  const originalLabel = submitBtn.textContent;
+  submitBtn.disabled = true;
+  submitBtn.style.opacity = '0.7';
+  submitBtn.textContent = isSignup ? 'Creating account…' : 'Signing in…';
+  setAuthMessage('');
+
+  try {
+    if(isSignup) {
+      await window.firebaseApi.createUserWithEmailAndPassword(window.firebaseAuth, email, password);
+      showNotif('Account created');
+    } else {
+      await window.firebaseApi.signInWithEmailAndPassword(window.firebaseAuth, email, password);
+      showNotif('Signed in');
+    }
+    closeModal('modal-auth');
+  } catch (err) {
+    setAuthMessage((err && err.message) || 'Authentication failed.', true);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.style.opacity = '';
+    submitBtn.textContent = originalLabel;
+  }
+}
+
+async function signInWithGoogle() {
+  if(!window.firebaseReady || !window.firebaseAuth || !window.firebaseApi) {
+    setAuthMessage('Firebase is not ready yet. Try refreshing the page.', true);
+    return;
+  }
+  const provider = new window.firebaseApi.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  setAuthMessage('');
+  try {
+    await window.firebaseApi.signInWithPopup(window.firebaseAuth, provider);
+    showNotif('Signed in with Google');
+    closeModal('modal-auth');
+  } catch (err) {
+    setAuthMessage((err && err.message) || 'Google sign-in failed.', true);
+  }
+}
+
+async function signOutAccount() {
+  if(!window.firebaseReady || !window.firebaseAuth || !window.firebaseApi) {
+    showNotif('Firebase is not ready yet.');
+    return;
+  }
+  try {
+    await window.firebaseApi.signOut(window.firebaseAuth);
+    showNotif('Signed out');
+  } catch (err) {
+    showNotif((err && err.message) || 'Could not sign out');
+  }
+}
+
+function initAuthUI() {
+  if(authListenerBound) {
+    renderAccountUI();
+    return;
+  }
+  if(!window.firebaseReady || !window.firebaseAuth || !window.firebaseApi) {
+    if(!authInitQueued) {
+      authInitQueued = true;
+      setTimeout(() => {
+        authInitQueued = false;
+        initAuthUI();
+      }, 150);
+    }
+    renderAccountUI();
+    return;
+  }
+
+  authListenerBound = true;
+  window.firebaseApi.onAuthStateChanged(window.firebaseAuth, user => {
+    authUser = user || null;
+    authReady = true;
+    renderAccountUI();
+  });
+  renderAccountUI();
+}
+
 // ============================================================
 // PROGRESS PANEL
 // ============================================================
@@ -2811,6 +3094,7 @@ updateSessionSelects();
 loadNotifSettings();
 loadAudioSettings();
 loadDailyGoal();
+initAuthUI();
 </script>
 </body>
 </html>
