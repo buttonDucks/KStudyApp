@@ -11,7 +11,14 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword,
 import { getFirestore, doc, getDoc, setDoc, updateDoc,
          collection, getDocs, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-const firebaseConfig = { /* paste yours here */ };
+const firebaseConfig = {
+  apiKey: "AIzaSyBJ384xc2Hdd3LrASHTW9J4JtNQVURugZ0",
+  authDomain: "flipside-koreanstudy.firebaseapp.com",
+  projectId: "flipside-koreanstudy",
+  storageBucket: "flipside-koreanstudy.firebasestorage.app",
+  messagingSenderId: "802613311835",
+  appId: "1:802613311835:web:e330d5fea38bf720c0c27e"
+};
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db_fs = getFirestore(app); // using db_fs to avoid clashing with your local db variable
