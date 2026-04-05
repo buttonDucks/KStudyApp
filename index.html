@@ -1300,16 +1300,23 @@ function startSession(type) {
   );
 
   // Partition
-  const due     = allCards.filter(c => c.srStatus==='learning' && isDue(db.words[c.id]));
-  const newCards = allCards.filter(c => c.srStatus==='new');
+  const due = allCards.filter(c => c.srStatus === 'learning' && isDue(db.words[c.id]));
+  const learningBackfill = allCards.filter(c => c.srStatus === 'learning' && !isDue(db.words[c.id]));
+  const newCards = allCards.filter(c => c.srStatus === 'new');
   const knownDue = includeKnown
-    ? allCards.filter(c => c.srStatus==='known' && isDue(db.words[c.id]))
+    ? allCards.filter(c => c.srStatus === 'known' && isDue(db.words[c.id]))
+    : [];
+  const knownBackfill = includeKnown
+    ? allCards.filter(c => c.srStatus === 'known' && !isDue(db.words[c.id]))
     : [];
 
-  // Build pool: due first (sorted by urgency = how overdue), then new, then known
+  // Build pool: due learning first, then requested new cards, then optional known revision,
+  // then backfill from existing non-new cards before ever considering extra new cards.
   due.sort((a, b) => (db.words[a.id].due||today) < (db.words[b.id].due||today) ? -1 : 1);
+  shuffle(learningBackfill);
   shuffle(newCards);
   shuffle(knownDue);
+  shuffle(knownBackfill);
 
   const dueLimit = Math.max(0, size - Math.min(newCount, newCards.length));
   let pool = [
@@ -1317,12 +1324,12 @@ function startSession(type) {
     ...newCards.slice(0, newCount),
   ].slice(0, size);
 
-  // Fill gaps with known if enabled
+  // Fill gaps with due known cards if enabled.
   if(pool.length < size && knownDue.length) {
     pool = pool.concat(knownDue.slice(0, size - pool.length));
   }
 
-  // Backfill from due cards before introducing any extra new cards.
+  // Backfill from remaining due learning cards.
   if(pool.length < size) {
     const usedIds = new Set(pool.map(card => card.id));
     const remainingDue = due.filter(card => !usedIds.has(card.id));
@@ -1331,11 +1338,30 @@ function startSession(type) {
     }
   }
 
+  // If not enough cards are due, use existing non-new cards before showing any extra new ones.
+  if(pool.length < size) {
+    const usedIds = new Set(pool.map(card => card.id));
+    const remainingLearning = learningBackfill.filter(card => !usedIds.has(card.id));
+    if(remainingLearning.length) {
+      pool = pool.concat(remainingLearning.slice(0, size - pool.length));
+    }
+  }
+
+  if(pool.length < size && knownBackfill.length) {
+    const usedIds = new Set(pool.map(card => card.id));
+    const remainingKnown = knownBackfill.filter(card => !usedIds.has(card.id));
+    if(remainingKnown.length) {
+      pool = pool.concat(remainingKnown.slice(0, size - pool.length));
+    }
+  }
+
   // Respect the user's new-card setting: review-only sessions should stay review-only.
   if(!pool.length) {
     const fallbackPool = [
       ...due,
+      ...learningBackfill,
       ...knownDue,
+      ...knownBackfill,
       ...(newCount > 0 ? newCards : []),
     ];
     pool = shuffle(fallbackPool).slice(0, size);
